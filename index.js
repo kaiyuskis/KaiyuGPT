@@ -13,14 +13,16 @@ const openai = new OpenAI({
 });
 
 client.once('ready', () => {
-    console.log('Ready!');
+    console.log('Bot is ready and connected to Discord!');
 });
 
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
-    if (message.content.startsWith('!ask ')) {
-        const query = message.content.replace('!ask ', '');
+    // ボットがメンションされたかどうかを確認
+    if (message.mentions.has(client.user)) {
+        const query = message.content.replace(`<@${client.user.id}>`, '').trim();
+        console.log(`Processing query: ${query}`);
 
         try {
             const completion = await openai.chat.completions.create({
@@ -28,10 +30,15 @@ client.on('messageCreate', async message => {
                 model: "gpt-4o-mini",
             });
 
-            message.reply(completion.choices[0].message.content.trim());
+            const replyContent = completion.choices[0].message.content.trim();
+            console.log(`Replying with: ${replyContent}`);
+
+            message.reply(replyContent);
         } catch (error) {
             if (error.code === 'insufficient_quota') {
-                message.reply('Sorry, I have reached my request limit. Please try again later.');
+                const errorMessage = 'Sorry, I have reached my request limit. Please try again later.';
+                console.error('OpenAI API error: insufficient_quota');
+                message.reply(errorMessage);
             } else {
                 console.error('Error with OpenAI API:', error);
                 message.reply('Sorry, there was an error processing your request.');
@@ -39,5 +46,15 @@ client.on('messageCreate', async message => {
         }
     }
 });
+
+// 終了シグナルをキャッチしてクリーンアップ処理を行う
+const cleanup = () => {
+    console.log('Cleaning up before exit...');
+    client.destroy();
+    process.exit(0);
+};
+
+process.on('SIGINT', cleanup);
+process.on('SIGTERM', cleanup);
 
 client.login(process.env.DISCORD_TOKEN);
